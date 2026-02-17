@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  user_service:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    build:
+      context: ../
+      dockerfile: ./internal/services/user_service/docker/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: users
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 1234
+    volumes:
+      - ./internal/services/user_service/config:/app/internal/services/user_service/config:ro
+    ports:
+      - "50052:50052" 
+      - "8082:8082"
+
+  room_service:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    build:
+      context: ../
+      dockerfile: ./internal/services/room_service/docker/Dockerfile
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: rooms
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 1234
+    volumes:
+      - ./internal/services/room_service/config:/app/internal/services/room_service/config:ro
+    ports:
+      - "50051:50051"
+      - "8081:8081"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: weride_postgres
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_MULTIPLE_DATABASES: users,rooms
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker-postgresql-multiple-databases:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d users"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+volumes:
+  postgres_data:

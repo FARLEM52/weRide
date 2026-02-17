@@ -1,0 +1,12 @@
+
+GRPC_PORT: "50052"
+REST_PORT: "8082"
+
+POSTGRES:
+  POSTGRES_HOST: "localhost"
+  POSTGRES_PORT:  "5432"
+  POSTGRES_USER: "root"
+  POSTGRES_PASS: "1234"
+  POSTGRES_DB: "users"
+jwt_access_token_ttl: 15m
+JWT_SECRET: "secret"
