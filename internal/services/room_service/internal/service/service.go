@@ -11,11 +11,10 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	payment_pb "we_ride/internal/services/payment_service/pb"
-	"
+	paymentpb "we_ride/internal/services/payment_service/pb"
 	"we_ride/internal/services/room_service/internal/repository"
 	roomservice "we_ride/internal/services/room_service/pb"
-	payment_pb "we_ride/internal/services/payment_service/pb"
+	authpb "we_ride/internal/services/user_service/protoc/gen/go"
 )
 
 type RoomService struct {
@@ -75,7 +74,13 @@ func (s *RoomService) JoinRoom(ctx context.Context, req *roomservice.JoinRoomReq
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "room not found: %v", err)
 	}
-	if len(room.Members) >= int(room.AvailableSeats) {
+
+	memberIDs, err := s.repo.GetRoomMembers(ctx, req.RoomId)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get room members: %v", err)
+	}
+
+	if len(memberIDs) >= int(room.AvailableSeats) {
 		if err := s.repo.UpdateRoomStatus(ctx, room.RoomId, roomservice.RoomStatus_ROOM_STATUS_FULL); err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to update room status: %v", err)
 		}
@@ -97,7 +102,7 @@ func (s *RoomService) ExitRoom(ctx context.Context, req *roomservice.ExitRoomReq
 	return &roomservice.ExitRoomResponse{Success: true}, nil
 }
 
-func (s *RoomService) FindRoom(ctx context.Context, req *roomservice.FindRoomRequest) (*roomservice.FindRoomResponse, error) {
+func (s *RoomService) FindRoom(ctx context.Context, _ *roomservice.FindRoomRequest) (*roomservice.FindRoomResponse, error) {
 	rooms, err := s.repo.ListAvailableRooms(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to find rooms: %v", err)
@@ -116,8 +121,6 @@ func (s *RoomService) GetRoomDetails(ctx context.Context, req *roomservice.GetRo
 	return &roomservice.GetRoomDetailsResponse{Room: room}, nil
 }
 
-// CompleteRide — главный метод. Вызывается водителем по завершении поездки.
-// Цепочка: обновить статус → сохранить маршрут в user_service → списать оплату
 func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.CompleteRideRequest) (*roomservice.CompleteRideResponse, error) {
 	if req.RoomId == "" {
 		return nil, status.Error(codes.InvalidArgument, "room_id is required")
@@ -126,7 +129,6 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 		return nil, status.Error(codes.InvalidArgument, "driver_id is required")
 	}
 
-	// 1. Получаем данные о комнате
 	room, err := s.repo.GetRoomByID(ctx, req.RoomId)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "room not found: %v", err)
@@ -135,7 +137,6 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 		return nil, status.Error(codes.AlreadyExists, "ride already completed")
 	}
 
-	// 2. Получаем список участников
 	memberIDs, err := s.repo.GetRoomMembers(ctx, req.RoomId)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get members: %v", err)
@@ -144,56 +145,32 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 		return nil, status.Error(codes.FailedPrecondition, "no members in room")
 	}
 
-	// 3. Рассчитываем стоимость на участника
 	totalPrice := req.TotalPrice
-	costPerMember := float32(0)
-	if len(memberIDs) > 0 {
-		costPerMember = totalPrice / float32(len(memberIDs))
-	}
+	costPerMember := totalPrice / float32(len(memberIDs))
 
-	// 4. Переводим комнату в COMPLETED
 	if err := s.repo.CompleteRoom(ctx, req.RoomId, totalPrice, costPerMember); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to complete room: %v", err)
 	}
 
-	// 5. Сохраняем маршрут в user_service (fire-and-forget с логированием ошибки)
 	startAddr := ""
 	if room.StartLocation != nil {
 		startAddr = room.StartLocation.Address
 	}
+	endAddr := ""
 	if room.EndLocation != nil {
 		endAddr = room.EndLocation.Address
 	}
-	if room.EndLocation != nil { endAddr = room.EndLocation.Address }
 
-	go func() {
-		if err != nil {
-			return
-		}
-		if err != nil { return }
-		defer userConn.Close()
+	go s.saveRoute(req, memberIDs, startAddr, endAddr, totalPrice)
 
-		authClient := auth_pb.NewAuthClient(userConn)
-		_, _ = authClient.SaveRoute(context.Background(), &auth_pb.SaveRouteRequest{
-			RoomId:       req.RoomId,
-			DriverId:     req.DriverId,
-			StartPoint:   startAddr,
-			EndPoint:     endAddr,
-			Distance:     float64(req.DistanceKm),
-			TotalPrice:   float64(totalPrice),
-			PassengerIds: memberIDs,
-		})
-	}()
-
-	// 6. Списываем оплату через payment_service
 	paymentConn, err := grpc.NewClient(s.paymentServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to connect to payment service: %v", err)
 	}
 	defer paymentConn.Close()
 
-	paymentClient := payment_pb.NewPaymentServiceClient(paymentConn)
-	payResp, err := paymentClient.ProcessPayment(ctx, &payment_pb.ProcessPaymentRequest{
+	paymentClient := paymentpb.NewPaymentServiceClient(paymentConn)
+	payResp, err := paymentClient.ProcessPayment(ctx, &paymentpb.ProcessPaymentRequest{
 		RoomId:        req.RoomId,
 		UserIds:       memberIDs,
 		AmountPerUser: costPerMember,
@@ -209,6 +186,25 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 		CostPerMember: costPerMember,
 		PaymentsCount: int32(len(payResp.Payments)),
 	}, nil
+}
+
+func (s *RoomService) saveRoute(req *roomservice.CompleteRideRequest, memberIDs []string, startAddr, endAddr string, totalPrice float32) {
+	userConn, err := grpc.NewClient(s.userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return
+	}
+	defer userConn.Close()
+
+	authClient := authpb.NewAuthClient(userConn)
+	_, _ = authClient.SaveRoute(context.Background(), &authpb.SaveRouteRequest{
+		RoomId:       req.RoomId,
+		DriverId:     req.DriverId,
+		StartPoint:   startAddr,
+		EndPoint:     endAddr,
+		Distance:     float64(req.DistanceKm),
+		TotalPrice:   float64(totalPrice),
+		PassengerIds: memberIDs,
+	})
 }
 
 func (s *RoomService) StreamRoomUpdates(
