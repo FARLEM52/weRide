@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	"we_ride/internal/services/room_service/internal/service"
 )
 
 // This is a compile-time assertion to ensure that this generated file

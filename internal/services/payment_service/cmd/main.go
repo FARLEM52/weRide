@@ -36,10 +36,6 @@ func main() {
 		l.Fatal(ctx, "failed to init config", zap.Error(err))
 	}
 
-	if cfg.YookassaShopID == "" || cfg.YookassaSecretKey == "" {
-		l.Fatal(ctx, "YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY must be set")
-	}
-
 	if err := database.RunMigrations(ctx, cfg.Postgres); err != nil {
 		l.Fatal(ctx, "failed to run migrations", zap.Error(err))
 	}
@@ -50,7 +46,12 @@ func main() {
 	}
 	defer pool.Close()
 
-	ykClient := yookassa.NewClient(cfg.YookassaShopID, cfg.YookassaSecretKey)
+	var ykClient *yookassa.Client
+	if cfg.YookassaShopID != "" && cfg.YookassaSecretKey != "" {
+		ykClient = yookassa.NewClient(cfg.YookassaShopID, cfg.YookassaSecretKey)
+	} else {
+		l.Warn(ctx, "YOOKASSA credentials are not set; payment service started in mock mode")
+	}
 	repo := repository.NewRepository(pool)
 	svc := service.New(repo, ykClient)
 

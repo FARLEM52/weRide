@@ -23,6 +23,12 @@ func New() (*Config, error) {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			return nil, fmt.Errorf("config.New: %w", err)
 		}
+		return &cfg, nil
 	}
+
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("config.New env override: %w", err)
+	}
+
 	return &cfg, nil
 }
