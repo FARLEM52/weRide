@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"we_ride/internal/services/room_service/database"
 )
 
 type Config struct {
@@ -16,17 +16,17 @@ type Config struct {
 	Port     string `yaml:"POSTGRES_PORT" env:"POSTGRES_PORT" env-default:"5432"`
 	Username string `yaml:"POSTGRES_USER" env:"POSTGRES_USER" env-default:"root"`
 	Password string `yaml:"POSTGRES_PASS" env:"POSTGRES_PASS" env-default:"1234"`
-	Database string `yaml:"POSTGRES_DB" env:"POSTGRES_DB" env-default:"repository"`
+	Database string `yaml:"POSTGRES_DB"   env:"POSTGRES_DB"   env-default:"users"`
 }
 
-func New(ctx context.Context, config database.Config) (*pgxpool.Pool, error) {
+func New(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
 	connString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		config.Username,
-		config.Password,
-		config.Host,
-		config.Port,
-		config.Database,
+		cfg.Username,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.Database,
 	)
 
 	conn, err := pgxpool.New(ctx, connString)
@@ -35,7 +35,6 @@ func New(ctx context.Context, config database.Config) (*pgxpool.Pool, error) {
 	}
 
 	if err := conn.Ping(ctx); err != nil {
-		fmt.Println("Postgres ping failed:", err)
 		return nil, fmt.Errorf("postgres ping failed: %w", err)
 	}
 
@@ -43,11 +42,11 @@ func New(ctx context.Context, config database.Config) (*pgxpool.Pool, error) {
 		"file://internal/services/user_service/db/migrations",
 		fmt.Sprintf(
 			"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			config.Username,
-			config.Password,
-			config.Host,
-			config.Port,
-			config.Database,
+			cfg.Username,
+			cfg.Password,
+			cfg.Host,
+			cfg.Port,
+			cfg.Database,
 		),
 	)
 	if err != nil {

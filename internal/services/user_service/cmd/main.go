@@ -7,6 +7,9 @@ import (
 	"google.golang.org/grpc"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"we_ride/internal/services/user_service/db/postgres"
 	"we_ride/internal/services/user_service/internal/config"
@@ -18,37 +21,47 @@ import (
 )
 
 func main() {
-
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	ctx, err := logger.New(ctx)
 	if err != nil {
 		log.Fatalf("failed to init logger: %v", err)
 	}
+	log := logger.GetLoggerFromCtx(ctx)
 
 	cfg, err := config.New()
 	if err != nil {
-		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "failed to init config: %v", zap.Error(err))
+		log.Fatal(ctx, "failed to init config", zap.Error(err))
 	}
 
 	pool, err := postgres.New(ctx, cfg.Postgres)
 	if err != nil {
-		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "failed to init repository: %v", zap.Error(err))
+		log.Fatal(ctx, "failed to connect to database", zap.Error(err))
 	}
-	fmt.Printf("DEBUG TTL value: '%s'\n", cfg.JWTAccessTokenTTL)
-	ttlToken := cfg.JWTAccessTokenTTL
-	repo := repository.NewRepository(pool, ttlToken, cfg.JwtSecret)
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(logger.Interceptor(ctx, logger.GetLoggerFromCtx(ctx))))
+	defer pool.Close()
+
+	repo := repository.NewRepository(pool, cfg.JWTAccessTokenTTL, cfg.JwtSecret)
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(logger.Interceptor(ctx, log)))
 
 	srv := service.New(repo)
 	pb.RegisterAuthServer(grpcServer, srv)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%s", cfg.GRPCPort))
 	if err != nil {
-		logger.GetLoggerFromCtx(ctx).Fatal(ctx, "Failed to listen", zap.Error(err))
+		log.Fatal(ctx, "failed to listen", zap.Error(err))
 	}
-	logger.GetLoggerFromCtx(ctx).Info(ctx, "gRPC server listening on "+cfg.GRPCPort)
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+
+	log.Info(ctx, "user service gRPC server started", zap.String("port", cfg.GRPCPort))
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			log.Fatal(ctx, "failed to serve gRPC", zap.Error(err))
+		}
+	}()
+
+	<-ctx.Done()
+	log.Info(ctx, "shutting down gracefully...")
+	grpcServer.GracefulStop()
+	log.Info(ctx, "user service stopped")
 }

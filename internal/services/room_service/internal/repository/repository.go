@@ -16,6 +16,8 @@ type Repository interface {
 	GetRoomByID(ctx context.Context, roomID string) (*roomservice.Room, error)
 	ListAvailableRooms(ctx context.Context) ([]*roomservice.Room, error)
 	UpdateRoomStatus(ctx context.Context, roomID string, status roomservice.RoomStatus) error
+	GetRoomMembers(ctx context.Context, roomID string) ([]string, error)
+	CompleteRoom(ctx context.Context, roomID string, totalPrice, costPerMember float32) error
 }
 
 type repository struct {
@@ -110,5 +112,39 @@ func (r *repository) ListAvailableRooms(ctx context.Context) ([]*roomservice.Roo
 func (r *repository) UpdateRoomStatus(ctx context.Context, roomID string, status roomservice.RoomStatus) error {
 	query := `UPDATE rooms SET status=$1 WHERE room_id=$2;`
 	_, err := r.db.Exec(ctx, query, status, roomID)
+	return err
+}
+
+// GetRoomMembers возвращает список участников комнаты
+func (r *repository) GetRoomMembers(ctx context.Context, roomID string) ([]string, error) {
+	query := `SELECT user_id FROM room_members WHERE room_id = $1`
+	rows, err := r.db.Query(ctx, query, roomID)
+	if err != nil {
+		return nil, fmt.Errorf("GetRoomMembers: %w", err)
+	}
+	defer rows.Close()
+
+	var members []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			return nil, err
+		}
+		members = append(members, uid)
+	}
+	return members, nil
+}
+
+// CompleteRoom переводит комнату в статус COMPLETED и обновляет цену
+func (r *repository) CompleteRoom(ctx context.Context, roomID string, totalPrice, costPerMember float32) error {
+	query := `
+		UPDATE rooms
+		SET status = $1, total_price = $2, cost_per_member = $3
+		WHERE room_id = $4
+	`
+	_, err := r.db.Exec(ctx, query,
+		roomservice.RoomStatus_ROOM_STATUS_COMPLETED,
+		totalPrice, costPerMember, roomID,
+	)
 	return err
 }

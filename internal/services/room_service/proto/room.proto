@@ -150,3 +150,17 @@ message LocationUpdated {
 message PaymentUpdated {
     float new_cost_per_member = 2;      // Новая стоимость на участника
 }
+// CompleteRide — завершает поездку, триггерит оплату
+message CompleteRideRequest {
+    string room_id    = 1;
+    string driver_id  = 2;
+    float  total_price = 3;
+    float  distance_km = 4;
+}
+
+message CompleteRideResponse {
+    bool   success         = 1;
+    float  total_price     = 2;
+    float  cost_per_member = 3;
+    int32  payments_count  = 4;
+}

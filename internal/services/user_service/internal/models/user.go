@@ -9,7 +9,7 @@ type User struct {
 	UserID    uuid.UUID
 	Email     string
 	PassHash  []byte
-	FirsName  string
+	FirstName string
 	LastName  string
 	CreatedAt time.Time
 }

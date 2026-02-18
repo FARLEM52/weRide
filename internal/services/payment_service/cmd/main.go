@@ -13,15 +13,16 @@ import (
 	"google.golang.org/grpc"
 
 	"we_ride/internal/pkg/logger"
-	"we_ride/internal/services/room_service/config"
-	"we_ride/internal/services/room_service/database"
-	"we_ride/internal/services/room_service/internal/repository"
-	"we_ride/internal/services/room_service/internal/service"
-	pb "we_ride/internal/services/room_service/pb"
+	"we_ride/internal/services/payment_service/config"
+	"we_ride/internal/services/payment_service/database"
+	"we_ride/internal/services/payment_service/internal/repository"
+	"we_ride/internal/services/payment_service/internal/service"
+	"we_ride/internal/services/payment_service/internal/yookassa"
+	pb "we_ride/internal/services/payment_service/pb"
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	ctx, err := logger.New(ctx)
@@ -35,6 +36,10 @@ func main() {
 		l.Fatal(ctx, "failed to init config", zap.Error(err))
 	}
 
+	if cfg.YookassaShopID == "" || cfg.YookassaSecretKey == "" {
+		l.Fatal(ctx, "YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY must be set")
+	}
+
 	if err := database.RunMigrations(ctx, cfg.Postgres); err != nil {
 		l.Fatal(ctx, "failed to run migrations", zap.Error(err))
 	}
@@ -45,22 +50,19 @@ func main() {
 	}
 	defer pool.Close()
 
+	ykClient := yookassa.NewClient(cfg.YookassaShopID, cfg.YookassaSecretKey)
 	repo := repository.NewRepository(pool)
-	roomService := service.New(repo, cfg.UserServiceAddr, cfg.PaymentServiceAddr)
+	svc := service.New(repo, ykClient)
 
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(logger.Interceptor(ctx, l)))
-
-	// Регистрируем основные методы
-	pb.RegisterRoomServiceServer(grpcServer, roomService)
-	// Регистрируем CompleteRide как расширение
-	pb.RegisterCompleteRide(grpcServer, roomService)
+	pb.RegisterPaymentServiceServer(grpcServer, svc)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", cfg.GRPCHost, cfg.GRPCPort))
 	if err != nil {
 		l.Fatal(ctx, "failed to listen", zap.Error(err))
 	}
 
-	l.Info(ctx, "room service gRPC server started", zap.String("port", cfg.GRPCPort))
+	l.Info(ctx, "payment service gRPC server started", zap.String("port", cfg.GRPCPort))
 
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
@@ -71,5 +73,5 @@ func main() {
 	<-ctx.Done()
 	l.Info(ctx, "shutting down gracefully...")
 	grpcServer.GracefulStop()
-	l.Info(ctx, "room service stopped")
+	l.Info(ctx, "payment service stopped")
 }

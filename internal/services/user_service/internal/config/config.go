@@ -9,21 +9,22 @@ import (
 )
 
 type Config struct {
-	Postgres postgres.Config `yaml:"POSTGRES" env:"POSTGRES"`
+	Postgres postgres.Config `yaml:"POSTGRES"`
 
-	GRPCPort string `yaml:"GRPC_PORT" env:"GRPC_PORT"  envDefault:"50052"`
-	RESRPort string `yaml:"REST_PORT" env:"REST_PORT" envDefault:"8082"`
+	GRPCPort string `yaml:"GRPC_PORT" env:"GRPC_PORT" env-default:"50052"`
 
-	JWTAccessTokenTTL time.Duration `yaml:"jwt_access_token_ttl: 15m" env:"JWT_ACCESS_TOKEN_TTL" envDefault:"15m"`
-	JwtSecret         string        `yaml:"JWT_SECRET" env:"JWT_SECRET" envDefault:"secret"`
+	JWTAccessTokenTTL time.Duration `yaml:"jwt_access_token_ttl" env:"JWT_ACCESS_TOKEN_TTL" env-default:"15m"`
+	JwtSecret         string        `yaml:"JWT_SECRET"           env:"JWT_SECRET"           env-default:"secret"`
 }
 
 func New() (*Config, error) {
 	var cfg Config
 
-	path := "api/config/config.yaml"
-	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+	// Пробуем прочитать из файла, если нет — берём из переменных окружения
+	if err := cleanenv.ReadConfig("internal/services/user_service/config/local.yaml", &cfg); err != nil {
+		if err := cleanenv.ReadEnv(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to read config: %w", err)
+		}
 	}
 	return &cfg, nil
 }

@@ -14,9 +14,9 @@ type UserServiceClient struct {
 }
 
 func NewUserServiceClient(addr string) (*UserServiceClient, error) {
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return nil, fmt.Errorf("fail to dial: %v", err)
+		return nil, fmt.Errorf("fail to create grpc client: %v", err)
 	}
 	client := pb.NewAuthClient(conn)
 	return &UserServiceClient{client, conn}, nil

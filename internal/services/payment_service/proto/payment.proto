@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "we_ride/internal/services/payment_service/pb;pb";
+
+service PaymentService {
+  rpc ProcessPayment(ProcessPaymentRequest) returns (ProcessPaymentResponse);
+  rpc RefundPayment(RefundPaymentRequest) returns (RefundPaymentResponse);
+  rpc GetPaymentHistory(GetPaymentHistoryRequest) returns (GetPaymentHistoryResponse);
+}
+
+message Payment {
+  string payment_id = 1;
+  string room_id = 2;
+  string user_id = 3;
+  float amount = 4;
+  string currency = 5;
+  string status = 6;
+  string yookassa_payment_id = 7;
+  string created_at = 8;
+  string description = 9;
+}
+
+message ProcessPaymentRequest {
+  string room_id = 1;
+  repeated string user_ids = 2;
+  float amount_per_user = 3;
+  string description = 4;
+}
+
+message ProcessPaymentResponse {
+  repeated Payment payments = 1;
+  bool success = 2;
+}
+
+message RefundPaymentRequest {
+  string room_id = 1;
+  string reason = 2;
+}
+
+message RefundPaymentResponse {
+  repeated Payment refunds = 1;
+  bool success = 2;
+}
+
+message GetPaymentHistoryRequest {
+  string user_id = 1;
+}
+
+message GetPaymentHistoryResponse {
+  repeated Payment payments = 1;
+}

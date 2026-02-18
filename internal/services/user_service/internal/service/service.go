@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
 	"we_ride/internal/services/user_service/internal/repository"
 	pb "we_ride/internal/services/user_service/protoc/gen/go"
 )
@@ -19,9 +21,7 @@ func New(repo repository.Repository) *ServerAPI {
 	return &ServerAPI{repo: repo}
 }
 
-func (s *ServerAPI) Login(
-	ctx context.Context,
-	req *pb.LoginRequest) (*pb.LoginResponse, error) {
+func (s *ServerAPI) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	if req.GetEmail() == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email is required")
 	}
@@ -32,14 +32,10 @@ func (s *ServerAPI) Login(
 	if err != nil {
 		return nil, status.Error(codes.Unauthenticated, err.Error())
 	}
-	resp := &pb.LoginResponse{Token: token}
-
-	return resp, nil
+	return &pb.LoginResponse{Token: token}, nil
 }
 
-func (s *ServerAPI) Register(
-	ctx context.Context,
-	req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+func (s *ServerAPI) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	if req.GetEmail() == "" {
 		return nil, status.Error(codes.InvalidArgument, "Email is required")
 	}
@@ -55,24 +51,14 @@ func (s *ServerAPI) Register(
 	if req.GetGender() == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Gender is required")
 	}
-	UserId, err := s.repo.SaveUser(
-		ctx,
-		req.GetEmail(),
-		req.GetPassword(), req.GetFirstName(),
-		req.GetLastName(),
-		req.GetGender(),
-	)
+	userID, err := s.repo.SaveUser(ctx, req.GetEmail(), req.GetPassword(), req.GetFirstName(), req.GetLastName(), req.GetGender())
 	if err != nil {
-		return nil, status.Error(codes.Unauthenticated, err.Error())
+		return nil, status.Error(codes.AlreadyExists, err.Error())
 	}
-	resp := &pb.RegisterResponse{UserId: UserId}
-	return resp, nil
+	return &pb.RegisterResponse{UserId: userID}, nil
 }
 
-func (s *ServerAPI) HistoryOfRoutes(
-	ctx context.Context,
-	req *pb.HistoryOfRoutesRequest) (*pb.HistoryOfRoutesResponse, error) {
-
+func (s *ServerAPI) HistoryOfRoutes(ctx context.Context, req *pb.HistoryOfRoutesRequest) (*pb.HistoryOfRoutesResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "metadata is missing")
@@ -81,7 +67,6 @@ func (s *ServerAPI) HistoryOfRoutes(
 	if len(userIDs) == 0 {
 		return nil, status.Error(codes.Unauthenticated, "user_id not found in metadata")
 	}
-
 	userID, err := uuid.Parse(userIDs[0])
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, "invalid user_id format")
@@ -92,7 +77,7 @@ func (s *ServerAPI) HistoryOfRoutes(
 		return nil, status.Errorf(codes.Internal, "failed to get routes: %v", err)
 	}
 
-	resp := pb.HistoryOfRoutesResponse{}
+	resp := &pb.HistoryOfRoutesResponse{}
 	for _, route := range routes {
 		resp.Routes = append(resp.Routes, &pb.Route{
 			RouteId:    route.RouteId,
@@ -103,6 +88,32 @@ func (s *ServerAPI) HistoryOfRoutes(
 			Distance:   route.Distance,
 		})
 	}
+	return resp, nil
+}
 
-	return &resp, nil
+// SaveRoute — вызывается room_service при завершении поездки (COMPLETED)
+func (s *ServerAPI) SaveRoute(ctx context.Context, req *pb.SaveRouteRequest) (*pb.SaveRouteResponse, error) {
+	if req.GetRoomId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "room_id is required")
+	}
+	if req.GetDriverId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "driver_id is required")
+	}
+	if len(req.GetPassengerIds()) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "passenger_ids must not be empty")
+	}
+
+	routeID, err := s.repo.SaveRoute(ctx,
+		req.GetRoomId(),
+		req.GetDriverId(),
+		req.GetStartPoint(),
+		req.GetEndPoint(),
+		req.GetDistance(),
+		req.GetTotalPrice(),
+		req.GetPassengerIds(),
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to save route: %v", err)
+	}
+	return &pb.SaveRouteResponse{RouteId: routeID}, nil
 }
