@@ -24,7 +24,9 @@ type Router struct {
 
 func NewRouter(ctx context.Context, cfg *config.Config, h Server) *Router {
 	server := grpc.NewServer(grpc.UnaryInterceptor(logger.Interceptor(ctx, logger.GetLoggerFromCtx(ctx))))
-	roomservice.RegisterRoomServiceServer(server, h)
+	if _, exists := server.GetServiceInfo()[roomservice.RoomService_ServiceDesc.ServiceName]; !exists {
+		roomservice.RegisterRoomServiceServer(server, h)
+	}
 
 	linq := fmt.Sprintf("%s:%s", cfg.GRPCHost, cfg.GRPCPort)
 
