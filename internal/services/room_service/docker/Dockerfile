@@ -20,6 +20,7 @@ WORKDIR /app
 
 COPY --from=builder /room-service /app/
 COPY --from=builder /app/internal/services/room_service/config /app/internal/services/room_service/config
+COPY --from=builder /app/internal/services/room_service/database/migrations /app/internal/services/room_service/database/migrations
 
 EXPOSE 50051
 CMD ["./room-service"]
