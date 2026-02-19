@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/ilyakaznacheev/cleanenv"
 	"time"
 
+	"github.com/ilyakaznacheev/cleanenv"
 	"we_ride/internal/services/user_service/db/postgres"
 )
 
@@ -20,11 +20,16 @@ type Config struct {
 func New() (*Config, error) {
 	var cfg Config
 
-	// Пробуем прочитать из файла, если нет — берём из переменных окружения
 	if err := cleanenv.ReadConfig("internal/services/user_service/config/local.yaml", &cfg); err != nil {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			return nil, fmt.Errorf("failed to read config: %w", err)
 		}
+		return &cfg, nil
 	}
+
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to read env config: %w", err)
+	}
+
 	return &cfg, nil
 }

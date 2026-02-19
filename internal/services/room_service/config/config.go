@@ -3,9 +3,8 @@ package config
 import (
 	"fmt"
 
-	"we_ride/internal/services/room_service/database"
-
 	"github.com/ilyakaznacheev/cleanenv"
+	"we_ride/internal/services/room_service/database"
 )
 
 type Config struct {
@@ -17,7 +16,6 @@ type Config struct {
 	RESTPort string `env:"REST_PORT" env-default:"8081" yaml:"REST_PORT"`
 	RESTHost string `env:"REST_HOST" env-default:"0.0.0.0" yaml:"REST_HOST"`
 
-	// Адреса зависимых сервисов
 	UserServiceAddr    string `env:"USER_SERVICE_ADDR"    env-default:"localhost:50052" yaml:"USER_SERVICE_ADDR"`
 	PaymentServiceAddr string `env:"PAYMENT_SERVICE_ADDR" env-default:"localhost:50053" yaml:"PAYMENT_SERVICE_ADDR"`
 }
@@ -28,6 +26,12 @@ func New() (*Config, error) {
 		if err := cleanenv.ReadEnv(&cfg); err != nil {
 			return nil, fmt.Errorf("config.New: %w", err)
 		}
+		return &cfg, nil
 	}
+
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("config.New env override: %w", err)
+	}
+
 	return &cfg, nil
 }

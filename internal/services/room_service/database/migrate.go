@@ -16,7 +16,7 @@ func RunMigrations(ctx context.Context, cfg Config) error {
 	basepath := filepath.Dir(b)
 	migrationsPath := filepath.Join(basepath, "migrations")
 
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.Username,
 		cfg.Password,
 		cfg.Host,
