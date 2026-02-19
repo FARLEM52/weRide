@@ -24,6 +24,7 @@ COPY --from=builder /app/internal/services/user_service/config/local.yaml /app/c
 
 # Копируем бинарник
 COPY --from=builder /user-service /app/
+COPY --from=builder /app/internal/services/user_service/db/migrations /app/internal/services/user_service/db/migrations
 
 WORKDIR /app
 EXPOSE 50052 8082
