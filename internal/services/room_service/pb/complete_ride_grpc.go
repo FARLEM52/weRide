@@ -17,7 +17,7 @@ type RoomServiceCompleteRideServer interface {
 // CompleteRide добавляется к клиенту через extension method pattern
 func CompleteRideClient(cc grpc.ClientConnInterface, ctx context.Context, req *CompleteRideRequest, opts ...grpc.CallOption) (*CompleteRideResponse, error) {
 	out := new(CompleteRideResponse)
-	err := cc.Invoke(ctx, "/service.room.v1.RoomService/CompleteRide", req, out,
+	err := cc.Invoke(ctx, "/service.room.v1.RoomServiceCompleteRide/CompleteRide", req, out,
 		append([]grpc.CallOption{grpc.StaticMethod()}, opts...)...)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func CompleteRideHandler(srv interface{}, ctx context.Context, dec func(interfac
 	if interceptor == nil {
 		return impl.CompleteRide(ctx, in)
 	}
-	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/service.room.v1.RoomService/CompleteRide"}
+	info := &grpc.UnaryServerInfo{Server: srv, FullMethod: "/service.room.v1.RoomServiceCompleteRide/CompleteRide"}
 	return interceptor(ctx, in, info, func(ctx context.Context, req interface{}) (interface{}, error) {
 		return impl.CompleteRide(ctx, req.(*CompleteRideRequest))
 	})
@@ -47,7 +47,7 @@ func CompleteRideHandler(srv interface{}, ctx context.Context, dec func(interfac
 // RegisterCompleteRide добавляет метод CompleteRide к уже запущенному gRPC серверу
 func RegisterCompleteRide(s *grpc.Server, srv RoomServiceCompleteRideServer) {
 	s.RegisterService(&grpc.ServiceDesc{
-		ServiceName: "service.room.v1.RoomService",
+		ServiceName: "service.room.v1.RoomServiceCompleteRide",
 		HandlerType: (*RoomServiceCompleteRideServer)(nil),
 		Methods: []grpc.MethodDesc{
 			{
