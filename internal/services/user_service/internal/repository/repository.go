@@ -76,7 +76,7 @@ func (r *Repository) LoginUser(ctx context.Context, email, password string) (str
 
 // GetUserRoutes возвращает историю поездок пользователя.
 // Работает через таблицы public.routes и public.room_passengers.
-func (r *Repository) GetUserRoutes(ctx context.Context, userID uuid.UUID) ([]pb.Route, error) {
+func (r *Repository) GetUserRoutes(ctx context.Context, userID uuid.UUID) ([]*pb.Route, error) {
 	query := `
 		SELECT
 			rt.route_id,
@@ -96,9 +96,9 @@ func (r *Repository) GetUserRoutes(ctx context.Context, userID uuid.UUID) ([]pb.
 	}
 	defer rows.Close()
 
-	var routes []pb.Route
+	var routes []*pb.Route
 	for rows.Next() {
-		var route pb.Route
+		route := &pb.Route{}
 		if err := rows.Scan(
 			&route.RouteId,
 			&route.DriverId,
