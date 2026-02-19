@@ -176,7 +176,7 @@ type UnsafeRoomServiceServer interface {
 	mustEmbedUnimplementedRoomServiceServer()
 }
 
-func RegisterRoomServiceServer(s grpc.ServiceRegistrar, srv *service.RoomService) {
+func RegisterRoomServiceServer(s grpc.ServiceRegistrar, srv RoomServiceServer) {
 	// If the following call pancis, it indicates UnimplementedRoomServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization

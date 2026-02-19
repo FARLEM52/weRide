@@ -50,7 +50,7 @@ func main() {
 	if cfg.YookassaShopID != "" && cfg.YookassaSecretKey != "" {
 		ykClient = yookassa.NewClient(cfg.YookassaShopID, cfg.YookassaSecretKey)
 	} else {
-		l.Warn(ctx, "YOOKASSA credentials are not set; payment service started in mock mode")
+		l.Info(ctx, "YOOKASSA credentials are not set; payment service started in mock mode")
 	}
 	repo := repository.NewRepository(pool)
 	svc := service.New(repo, ykClient)

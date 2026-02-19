@@ -16,13 +16,18 @@ import (
 
 const currency = "RUB"
 
+type yookassaClient interface {
+	CreatePayment(ctx context.Context, idempotencyKey string, req yookassa.CreatePaymentRequest) (*yookassa.PaymentResponse, error)
+	CreateRefund(ctx context.Context, idempotencyKey string, req yookassa.CreateRefundRequest) (*yookassa.RefundResponse, error)
+}
+
 type PaymentService struct {
 	pb.UnimplementedPaymentServiceServer
 	repo     repository.Repository
-	yookassa *yookassa.Client
+	yookassa yookassaClient
 }
 
-func New(repo repository.Repository, ykClient *yookassa.Client) *PaymentService {
+func New(repo repository.Repository, ykClient yookassaClient) *PaymentService {
 	return &PaymentService{repo: repo, yookassa: ykClient}
 }
 

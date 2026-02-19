@@ -17,11 +17,17 @@ import (
 	authpb "we_ride/internal/services/user_service/protoc/gen/go"
 )
 
+type paymentProcessor func(ctx context.Context, req *paymentpb.ProcessPaymentRequest) (*paymentpb.ProcessPaymentResponse, error)
+type routeSaver func(req *roomservice.CompleteRideRequest, memberIDs []string, startAddr, endAddr string, totalPrice float32)
+
 type RoomService struct {
 	roomservice.UnimplementedRoomServiceServer
 	repo               repository.Repository
 	userServiceAddr    string
 	paymentServiceAddr string
+
+	processPaymentFn paymentProcessor
+	saveRouteFn      routeSaver
 }
 
 func New(repo repository.Repository, userServiceAddr, paymentServiceAddr string) *RoomService {
@@ -161,6 +167,9 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 		endAddr = room.EndLocation.Address
 	}
 
+	s.saveRoute(req, memberIDs, startAddr, endAddr, totalPrice)
+
+	payResp, err := s.processPayment(ctx, &paymentpb.ProcessPaymentRequest{
 	go s.saveRoute(req, memberIDs, startAddr, endAddr, totalPrice)
 
 	paymentConn, err := grpc.NewClient(s.paymentServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -188,6 +197,45 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 	}, nil
 }
 
+func (s *RoomService) processPayment(ctx context.Context, req *paymentpb.ProcessPaymentRequest) (*paymentpb.ProcessPaymentResponse, error) {
+	if s.processPaymentFn != nil {
+		return s.processPaymentFn(ctx, req)
+	}
+
+	paymentConn, err := grpc.NewClient(s.paymentServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to payment service: %w", err)
+	}
+	defer paymentConn.Close()
+
+	paymentClient := paymentpb.NewPaymentServiceClient(paymentConn)
+	return paymentClient.ProcessPayment(ctx, req)
+}
+
+func (s *RoomService) saveRoute(req *roomservice.CompleteRideRequest, memberIDs []string, startAddr, endAddr string, totalPrice float32) {
+	if s.saveRouteFn != nil {
+		s.saveRouteFn(req, memberIDs, startAddr, endAddr, totalPrice)
+		return
+	}
+
+	go func() {
+		userConn, err := grpc.NewClient(s.userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return
+		}
+		defer userConn.Close()
+
+		authClient := authpb.NewAuthClient(userConn)
+		_, _ = authClient.SaveRoute(context.Background(), &authpb.SaveRouteRequest{
+			RoomId:       req.RoomId,
+			DriverId:     req.DriverId,
+			StartPoint:   startAddr,
+			EndPoint:     endAddr,
+			Distance:     float64(req.DistanceKm),
+			TotalPrice:   float64(totalPrice),
+			PassengerIds: memberIDs,
+		})
+	}()
 func (s *RoomService) saveRoute(req *roomservice.CompleteRideRequest, memberIDs []string, startAddr, endAddr string, totalPrice float32) {
 	userConn, err := grpc.NewClient(s.userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
