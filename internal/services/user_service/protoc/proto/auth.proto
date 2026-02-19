@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+option go_package = "user-repository/protoc/gen/go;pb";
+
+package auth;
+
+service Auth {
+  rpc Register(RegisterRequest)           returns (RegisterResponse);
+  rpc Login(LoginRequest)                 returns (LoginResponse);
+  rpc HistoryOfRoutes(HistoryOfRoutesRequest) returns (HistoryOfRoutesResponse);
+  rpc SaveRoute(SaveRouteRequest)         returns (SaveRouteResponse);
+}
+
+message Route {
+  string route_id    = 1;
+  string driver_id   = 2;
+  string total_price = 3;
+  string start_point = 4;
+  string end_point   = 5;
+  string distance    = 6;
+}
+
+message RegisterRequest {
+  string email      = 1;
+  string password   = 2;
+  string first_name = 3;
+  string last_name  = 4;
+  int64  gender     = 5;
+}
+
+message RegisterResponse {
+  string user_id = 1;
+}
+
+message LoginRequest {
+  string email    = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+}
+
+message HistoryOfRoutesRequest {}
+
+message HistoryOfRoutesResponse {
+  repeated Route routes = 1;
+}
+
+message SaveRouteRequest {
+  string room_id      = 1;
+  string driver_id    = 2;
+  string start_point  = 3;
+  string end_point    = 4;
+  double distance     = 5;
+  double total_price  = 6;
+  repeated string passenger_ids = 7;
+}
+
+message SaveRouteResponse {
+  string route_id = 1;
+}

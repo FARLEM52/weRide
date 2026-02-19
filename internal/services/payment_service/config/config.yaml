@@ -1,0 +1,13 @@
+GRPC_PORT: "50053"
+GRPC_HOST: "0.0.0.0"
+
+# Получи credentials на https://yookassa.ru/my/api-keys
+YOOKASSA_SHOP_ID:    "your_shop_id"
+YOOKASSA_SECRET_KEY: "your_secret_key"
+
+POSTGRES:
+  POSTGRES_HOST: "localhost"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "root"
+  POSTGRES_PASS: "1234"
+  POSTGRES_DB:   "payments"

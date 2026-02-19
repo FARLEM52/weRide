@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package service.room.v1;
+import "google/protobuf/timestamp.proto"; 
+
+option go_package = "/roomservice";
+
+service RoomService {    
+    // CreateRoom создает новую комнату для совместной поездки
+    rpc CreateRoom (CreateRoomRequest) returns (CreateRoomResponse);
+    
+    // JoinRoom позволяет пользователю присоединиться к существующей комнате
+    rpc JoinRoom (JoinRoomRequest) returns (JoinRoomResponse);
+    
+    // ExitRoom позволяет пользователю покинуть комнату
+    rpc ExitRoom (ExitRoomRequest) returns (ExitRoomResponse);
+    
+    // FindRoom ищет доступные комнаты по заданным критериям
+    rpc FindRoom (FindRoomRequest) returns (FindRoomResponse);
+    
+    // GetRoomDetails возвращает детальную информацию о конкретной комнате
+    rpc GetRoomDetails (GetRoomDetailsRequest) returns (GetRoomDetailsResponse);
+    
+    // StreamRoomUpdates предоставляет обновления комнаты в реальном времени
+    rpc StreamRoomUpdates (StreamRoomUpdatesRequest) returns (stream RoomUpdate);
+}
+
+message Location {
+    double latitude = 1;   // Широта
+    double longitude = 2;  // Долгота
+    string address = 3;    // Адрес в текстовом формате
+}
+
+// Статусы комнаты
+enum RoomStatus {
+    ROOM_STATUS_UNSPECIFIED = 0;  // Статус не указан
+    ROOM_STATUS_WAITING = 1;      // Ожидание участников
+    ROOM_STATUS_FULL = 2;         // Комната заполнена
+    ROOM_STATUS_ON_RIDE = 3;      // Поездка в процессе
+    ROOM_STATUS_COMPLETED = 4;    // Поездка завершена
+    ROOM_STATUS_CANCELLED = 5;    // Поездка отменена
+}
+
+message Vehicle {
+    string model = 1; // Модель машины
+    string color = 2; // Цвет машины
+    string plate_number = 3; // Номер машины
+}
+
+message Room {
+    string room_id = 1;              // Уникальный идентификатор комнаты
+    string creator_id = 2;            // ID создателя комнаты
+    repeated string members = 3;   // ID участников
+    Location start_location = 4;     // Место посадки
+    Location end_location = 5;    // Место назначения
+    int32 available_seats = 6;            // Максимальное количество участников
+    RoomStatus status = 7;            // Текущий статус комнаты
+    google.protobuf.Timestamp created_at = 8;      // Время создания
+    google.protobuf.Timestamp scheduled_time = 9;   // Запланированное время поездки
+    float total_price = 10;         // Общая стоимость поездки
+    float cost_per_member = 11;        // Стоимость на одного участника
+    Vehicle vehicle = 12;
+}
+
+message UserInfo {
+    string user_id = 1;    // ID пользователя
+    string name = 2;       // Имя
+    string avatar_url = 3; // Ссылка на аватар
+    float rating = 4;      // Рейтинг пользователя
+}
+
+message CreateRoomRequest {
+    string creator_id = 1;          // ID создателя
+    Location start_location = 2;    // Место посадки
+    Location end_location = 3;   // Место назначения
+    google.protobuf.Timestamp scheduled_time = 4; // Запланированное время
+    int32 max_members = 5;          // Максимальное количество участников
+}
+message CreateRoomResponse {
+    Room room = 1;  // Созданная комната
+}
+
+message JoinRoomRequest {
+    string room_id = 1;  // ID комнаты
+    string user_id = 2;   // ID пользователя
+}
+message JoinRoomResponse {
+    Room room = 1;  // Обновленная информация о комнате
+}
+
+message ExitRoomRequest {
+    string room_id = 1;  // ID комнаты
+    string user_id = 2;  // ID пользователя
+}
+message ExitRoomResponse {
+    bool success = 1;  // Флаг успешного выхода
+}
+
+message FindRoomRequest {
+    Location pickup_location = 1;     // Желаемое место посадки
+    Location dropoff_location = 2;    // Желаемое место назначения
+    google.protobuf.Timestamp time_range_start = 3; // Начало временного диапазона
+    google.protobuf.Timestamp time_range_end = 4;   // Конец временного диапазона
+    int32 required_seats = 5;        // Требуемое количество мест
+    float max_distance = 6;          // Максимальное расстояние (в метрах)
+}
+message FindRoomResponse {
+    repeated Room available_rooms = 1;  // Найденные доступные комнаты
+}
+
+message GetRoomDetailsRequest {
+    string room_id = 1;  // ID комнаты
+}
+message GetRoomDetailsResponse {
+    Room room = 1;               // Информация о комнате
+    repeated UserInfo members = 2; // Информация об участниках
+}
+
+message StreamRoomUpdatesRequest {
+    string room_id = 1;  // ID комнаты
+    string user_id = 2;  // ID пользователя (для аутентификации)
+}
+message RoomUpdate {
+    oneof update {
+        MemberJoined member_joined = 1;       // Новый участник присоединился
+        MemberLeft member_left = 2;           // Участник покинул комнату
+        RoomStatusChanged status_changed = 3;  // Изменился статус комнаты
+        LocationUpdated location_updated = 4;  // Изменилось место посадки/назначения
+        PaymentUpdated payment_updated = 5;    // Изменились условия оплаты
+    }
+}
+
+message MemberJoined {
+    UserInfo user = 1;  // Информация о новом участнике
+}
+
+message MemberLeft {
+    string user_id = 1;  // ID пользователя, который покинул комнату
+}
+
+message RoomStatusChanged {
+    RoomStatus new_status = 1;  // Новый статус комнаты
+}
+
+message LocationUpdated {
+    Location new_location = 1;  // Новое местоположение
+    bool is_pickup = 2;         // true - место посадки, false - место назначения
+}
+
+message PaymentUpdated {
+    float new_cost_per_member = 2;      // Новая стоимость на участника
+}
+// CompleteRide — завершает поездку, триггерит оплату
+message CompleteRideRequest {
+    string room_id    = 1;
+    string driver_id  = 2;
+    float  total_price = 3;
+    float  distance_km = 4;
+}
+
+message CompleteRideResponse {
+    bool   success         = 1;
+    float  total_price     = 2;
+    float  cost_per_member = 3;
+    int32  payments_count  = 4;
+}

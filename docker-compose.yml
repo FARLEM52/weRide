@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: weride_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_MULTIPLE_DATABASES: users,rooms,payments
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/docker-postgresql-multiple-databases:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d users"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    networks:
+      - weride
+
+  user_service:
+    build:
+      context: .
+      dockerfile: ./internal/services/user_service/docker/Dockerfile
+    container_name: weride_user_service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: root
+      POSTGRES_PASS: "1234"
+      POSTGRES_DB: users
+      GRPC_PORT: "50052"
+      GRPC_HOST: "0.0.0.0"
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production}"
+      JWT_ACCESS_TOKEN_TTL: "15m"
+    ports:
+      - "50052:50052"
+    networks:
+      - weride
+
+  payment_service:
+    build:
+      context: .
+      dockerfile: ./internal/services/payment_service/docker/Dockerfile
+    container_name: weride_payment_service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: root
+      POSTGRES_PASS: "1234"
+      POSTGRES_DB: payments
+      GRPC_PORT: "50053"
+      GRPC_HOST: "0.0.0.0"
+      YOOKASSA_SHOP_ID: "${YOOKASSA_SHOP_ID:-}"
+      YOOKASSA_SECRET_KEY: "${YOOKASSA_SECRET_KEY:-}"
+    ports:
+      - "50053:50053"
+    networks:
+      - weride
+
+  room_service:
+    build:
+      context: .
+      dockerfile: ./internal/services/room_service/docker/Dockerfile
+    container_name: weride_room_service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user_service:
+        condition: service_started
+      payment_service:
+        condition: service_started
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: root
+      POSTGRES_PASS: "1234"
+      POSTGRES_DB: rooms
+      GRPC_PORT: "50051"
+      GRPC_HOST: "0.0.0.0"
+      USER_SERVICE_ADDR: "user_service:50052"
+      PAYMENT_SERVICE_ADDR: "payment_service:50053"
+    ports:
+      - "50051:50051"
+    networks:
+      - weride
+
+  api_gateway:
+    build:
+      context: .
+      dockerfile: ./api/docker/Dockerfile
+    container_name: weride_api_gateway
+    restart: unless-stopped
+    depends_on:
+      user_service:
+        condition: service_started
+      room_service:
+        condition: service_started
+      payment_service:
+        condition: service_started
+    environment:
+      USER_SERVICE_ADDR: "user_service:50052"
+      ROOM_SERVICE_ADDR: "room_service:50051"
+      PAYMENT_SERVICE_ADDR: "payment_service:50053"
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-production}"
+      REST_PORT: "8080"
+    ports:
+      - "8080:8080"
+    networks:
+      - weride
+
+networks:
+  weride:
+    driver: bridge
+
+volumes:
+  postgres_data:

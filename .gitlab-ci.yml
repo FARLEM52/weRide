@@ -1,0 +1,27 @@
+stages:
+  - test
+
+variables:
+  GO_VERSION: "1.23"
+  GOCACHE: "$CI_PROJECT_DIR/.cache/go-build"
+  GOPATH: "$CI_PROJECT_DIR/.cache/go"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .cache/go-build
+    - .cache/go/pkg/mod
+
+unit_and_functional_tests:
+  stage: test
+  image: golang:${GO_VERSION}
+  script:
+    - go version
+    - go mod download
+    - go test ./... -covermode=atomic -coverprofile=coverage.out
+    - go tool cover -func=coverage.out
+  artifacts:
+    when: always
+    paths:
+      - coverage.out
+    expire_in: 7 days

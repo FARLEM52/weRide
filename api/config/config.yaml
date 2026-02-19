@@ -1,0 +1,5 @@
+JWT_SECRET: "your-strong-secret-key-change-me-in-production"
+USER_SERVICE_ADDR: "localhost:50052"
+ROOM_SERVICE_ADDR: "localhost:50051"
+PAYMENT_SERVICE_ADDR: "localhost:50053"
+REST_PORT: "8080"
