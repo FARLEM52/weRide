@@ -170,6 +170,16 @@ func (s *RoomService) CompleteRide(ctx context.Context, req *roomservice.Complet
 	s.saveRoute(req, memberIDs, startAddr, endAddr, totalPrice)
 
 	payResp, err := s.processPayment(ctx, &paymentpb.ProcessPaymentRequest{
+	go s.saveRoute(req, memberIDs, startAddr, endAddr, totalPrice)
+
+	paymentConn, err := grpc.NewClient(s.paymentServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to connect to payment service: %v", err)
+	}
+	defer paymentConn.Close()
+
+	paymentClient := paymentpb.NewPaymentServiceClient(paymentConn)
+	payResp, err := paymentClient.ProcessPayment(ctx, &paymentpb.ProcessPaymentRequest{
 		RoomId:        req.RoomId,
 		UserIds:       memberIDs,
 		AmountPerUser: costPerMember,
@@ -226,6 +236,23 @@ func (s *RoomService) saveRoute(req *roomservice.CompleteRideRequest, memberIDs 
 			PassengerIds: memberIDs,
 		})
 	}()
+func (s *RoomService) saveRoute(req *roomservice.CompleteRideRequest, memberIDs []string, startAddr, endAddr string, totalPrice float32) {
+	userConn, err := grpc.NewClient(s.userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return
+	}
+	defer userConn.Close()
+
+	authClient := authpb.NewAuthClient(userConn)
+	_, _ = authClient.SaveRoute(context.Background(), &authpb.SaveRouteRequest{
+		RoomId:       req.RoomId,
+		DriverId:     req.DriverId,
+		StartPoint:   startAddr,
+		EndPoint:     endAddr,
+		Distance:     float64(req.DistanceKm),
+		TotalPrice:   float64(totalPrice),
+		PassengerIds: memberIDs,
+	})
 }
 
 func (s *RoomService) StreamRoomUpdates(
