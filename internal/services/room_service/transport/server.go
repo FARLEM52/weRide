@@ -22,6 +22,9 @@ func New() *Server {
 }
 
 func RegisterServer(gRPC *grpc.Server) {
+	if _, exists := gRPC.GetServiceInfo()[roomservice.RoomService_ServiceDesc.ServiceName]; exists {
+		return
+	}
 	roomservice.RegisterRoomServiceServer(gRPC, &Server{})
 }
 
