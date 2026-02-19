@@ -50,10 +50,8 @@ func main() {
 
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(logger.Interceptor(ctx, l)))
 
-	// Регистрируем основные методы
+	// Регистрируем gRPC методы RoomService
 	pb.RegisterRoomServiceServer(grpcServer, roomService)
-	// Регистрируем CompleteRide как расширение
-	pb.RegisterCompleteRide(grpcServer, roomService)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf("%s:%s", cfg.GRPCHost, cfg.GRPCPort))
 	if err != nil {

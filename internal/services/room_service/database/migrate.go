@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -26,15 +27,33 @@ func RunMigrations(ctx context.Context, cfg Config) error {
 
 	migrationsURL := fmt.Sprintf("file://%s", migrationsPath)
 
-	m, err := migrate.New(migrationsURL, connString)
-	if err != nil {
-		return fmt.Errorf("failed to create migration instance: %w", err)
-	}
-	defer m.Close()
+	const maxAttempts = 15
+	const retryDelay = 2 * time.Second
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return fmt.Errorf("failed to run migrations: %w", err)
+	var (
+		m   *migrate.Migrate
+		err error
+	)
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		m, err = migrate.New(migrationsURL, connString)
+		if err == nil {
+			defer m.Close()
+			if err = m.Up(); err == nil || err == migrate.ErrNoChange {
+				return nil
+			}
+		}
+
+		if attempt == maxAttempts {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("migration canceled: %w", ctx.Err())
+		case <-time.After(retryDelay):
+		}
 	}
 
-	return nil
+	return fmt.Errorf("failed to run migrations after %d attempts: %w", maxAttempts, err)
 }
