@@ -177,6 +177,14 @@ type UnsafeRoomServiceServer interface {
 }
 
 func RegisterRoomServiceServer(s grpc.ServiceRegistrar, srv RoomServiceServer) {
+	if infoProvider, ok := s.(interface {
+		GetServiceInfo() map[string]grpc.ServiceInfo
+	}); ok {
+		if _, exists := infoProvider.GetServiceInfo()[RoomService_ServiceDesc.ServiceName]; exists {
+			return
+		}
+	}
+
 	// If the following call pancis, it indicates UnimplementedRoomServiceServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization

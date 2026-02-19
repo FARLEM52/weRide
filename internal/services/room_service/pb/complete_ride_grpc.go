@@ -46,6 +46,10 @@ func CompleteRideHandler(srv interface{}, ctx context.Context, dec func(interfac
 
 // RegisterCompleteRide добавляет метод CompleteRide к уже запущенному gRPC серверу
 func RegisterCompleteRide(s *grpc.Server, srv RoomServiceCompleteRideServer) {
+	if _, exists := s.GetServiceInfo()["service.room.v1.RoomServiceCompleteRide"]; exists {
+		return
+	}
+
 	s.RegisterService(&grpc.ServiceDesc{
 		ServiceName: "service.room.v1.RoomServiceCompleteRide",
 		HandlerType: (*RoomServiceCompleteRideServer)(nil),
