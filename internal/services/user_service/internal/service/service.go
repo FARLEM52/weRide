@@ -80,12 +80,12 @@ func (s *ServerAPI) HistoryOfRoutes(ctx context.Context, req *pb.HistoryOfRoutes
 	resp := &pb.HistoryOfRoutesResponse{}
 	for _, route := range routes {
 		resp.Routes = append(resp.Routes, &pb.Route{
-			RouteId:    route.RouteId,
-			DriverId:   route.DriverId,
-			TotalPrice: route.TotalPrice,
-			StartPoint: route.StartPoint,
-			EndPoint:   route.EndPoint,
-			Distance:   route.Distance,
+			RouteId:    route.GetRouteId(),
+			DriverId:   route.GetDriverId(),
+			TotalPrice: route.GetTotalPrice(),
+			StartPoint: route.GetStartPoint(),
+			EndPoint:   route.GetEndPoint(),
+			Distance:   route.GetDistance(),
 		})
 	}
 	return resp, nil

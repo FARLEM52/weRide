@@ -25,13 +25,12 @@
 ## Быстрый старт
 
 ```bash
-cd docker
-cp .env.example .env
-# Заполни .env: JWT_SECRET, YOOKASSA_SHOP_ID, YOOKASSA_SECRET_KEY
-docker-compose up --build
+cp .env.example .env 2>/dev/null || true
+# при отсутствии ЮKassa credentials payment_service запустится в mock-режиме
+docker compose up --build
 ```
 
-API доступен на `http://localhost:8080`
+API доступен на `http://localhost:8080` (через API Gateway).
 
 ---
 

@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -18,13 +16,16 @@ type Config struct {
 
 func New() (*Config, error) {
 	var cfg Config
-	wd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("cannot get working directory: %w", err)
+	if err := cleanenv.ReadConfig("api/config/config.yaml", &cfg); err != nil {
+		if err := cleanenv.ReadEnv(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to read config: %w", err)
+		}
+		return &cfg, nil
 	}
-	path := filepath.Join(wd, "api", "config", "config.yaml")
-	if err := cleanenv.ReadConfig(path, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to read config: %w", err)
+
+	if err := cleanenv.ReadEnv(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to read env config: %w", err)
 	}
+
 	return &cfg, nil
 }

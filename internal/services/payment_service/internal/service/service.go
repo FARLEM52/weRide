@@ -11,18 +11,23 @@ import (
 
 	"we_ride/internal/services/payment_service/internal/repository"
 	"we_ride/internal/services/payment_service/internal/yookassa"
-
+	pb "we_ride/internal/services/payment_service/pb"
 )
 
 const currency = "RUB"
 
+type yookassaClient interface {
+	CreatePayment(ctx context.Context, idempotencyKey string, req yookassa.CreatePaymentRequest) (*yookassa.PaymentResponse, error)
+	CreateRefund(ctx context.Context, idempotencyKey string, req yookassa.CreateRefundRequest) (*yookassa.RefundResponse, error)
+}
+
 type PaymentService struct {
 	pb.UnimplementedPaymentServiceServer
 	repo     repository.Repository
-	yookassa *yookassa.Client
+	yookassa yookassaClient
 }
 
-func New(repo repository.Repository, ykClient *yookassa.Client) *PaymentService {
+func New(repo repository.Repository, ykClient yookassaClient) *PaymentService {
 	return &PaymentService{repo: repo, yookassa: ykClient}
 }
 
@@ -50,33 +55,37 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, req *pb.ProcessPaym
 			description = fmt.Sprintf("Оплата поездки (комната %s)", req.RoomId)
 		}
 
-		// Создаём платёж в ЮKassa
-		ykResp, err := s.yookassa.CreatePayment(ctx, idempotencyKey, yookassa.CreatePaymentRequest{
-			Amount: yookassa.Amount{
-				Value:    amountStr,
-				Currency: currency,
-			},
-			Confirmation: yookassa.Confirmation{
-				Type:      "redirect",
-				ReturnURL: "https://weride.app/payment/success",
-			},
-			Description: description,
-			Capture:     true,
-			Metadata: map[string]string{
-				"room_id":    req.RoomId,
-				"user_id":    userID,
-				"payment_id": paymentID,
-			},
-		})
-
-		// Определяем статус для сохранения в БД
-		paymentStatus := "pending"
+		// Создаём платёж в ЮKassa (или мок-режим, если клиент не настроен)
+		paymentStatus := "succeeded"
 		yookassaID := ""
-		if err != nil {
-			paymentStatus = "failed"
+		var err error
+		if s.yookassa != nil {
+			ykResp, ykErr := s.yookassa.CreatePayment(ctx, idempotencyKey, yookassa.CreatePaymentRequest{
+				Amount: yookassa.Amount{
+					Value:    amountStr,
+					Currency: currency,
+				},
+				Confirmation: yookassa.Confirmation{
+					Type:      "redirect",
+					ReturnURL: "https://weride.app/payment/success",
+				},
+				Description: description,
+				Capture:     true,
+				Metadata: map[string]string{
+					"room_id":    req.RoomId,
+					"user_id":    userID,
+					"payment_id": paymentID,
+				},
+			})
+			err = ykErr
+			if ykErr != nil {
+				paymentStatus = "failed"
+			} else {
+				yookassaID = ykResp.ID
+				paymentStatus = ykResp.Status
+			}
 		} else {
-			yookassaID = ykResp.ID
-			paymentStatus = ykResp.Status
+			yookassaID = "mock-" + paymentID
 		}
 
 		// Сохраняем в БД в любом случае (даже при ошибке — для аудита)
@@ -145,14 +154,17 @@ func (s *PaymentService) RefundPayment(ctx context.Context, req *pb.RefundPaymen
 			reason = "Отмена поездки"
 		}
 
-		_, ykErr := s.yookassa.CreateRefund(ctx, idempotencyKey, yookassa.CreateRefundRequest{
-			PaymentID: p.YookassaPaymentID,
-			Amount: yookassa.Amount{
-				Value:    amountStr,
-				Currency: p.Currency,
-			},
-			Description: reason,
-		})
+		var ykErr error
+		if s.yookassa != nil {
+			_, ykErr = s.yookassa.CreateRefund(ctx, idempotencyKey, yookassa.CreateRefundRequest{
+				PaymentID: p.YookassaPaymentID,
+				Amount: yookassa.Amount{
+					Value:    amountStr,
+					Currency: p.Currency,
+				},
+				Description: reason,
+			})
+		}
 
 		newStatus := "refunded"
 		if ykErr != nil {
